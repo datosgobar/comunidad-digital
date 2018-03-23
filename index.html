@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Comunidad Digital</title>
+<style>
+
+@import url(style.css);
+ 
+#circle circle {
+fill: none;
+pointer-events: all;
+}
+ 
+.group path {
+fill-opacity: .5;
+}
+ 
+path.chord {
+stroke: #000;
+stroke-width: .25px;
+}
+ 
+#circle:hover path.fade {
+display: none;
+}
+
+.tooltip {
+    background: #fff;
+    box-shadow: 0 0 5px #999999;
+    color: #333;
+    font-size: 10px;
+    left: 130px;
+    padding: 10px;
+    position: absolute;
+    text-align: center;
+    top: 95px;
+    width: 130px;
+    z-index: 10;
+    display: block;
+    opacity: 0;
+}
+.legend {
+    font-size: 12px;
+}
+rect {
+    cursor: pointer;                                              /* NEW */
+    stroke-width: 2;
+}
+rect.disabled {                                                 /* NEW */
+    fill: transparent !important;                                 /* NEW */
+}
+ 
+</style>
+ 
+<h1>Segundo Encuentro de la Comunidad Digital</h1>
+
+<h2>¿En qué organismo de la APN trabajás?</h2>
+
+<div id="ministerios"></div>
+
+<h2>¿Cuál de estos perfiles describe mejor tus responsabilidades laborales?</h2>
+
+<div id="perfiles"></div>
+
+<h2>¿Cuántos años de experiencia en la APN tenés?</h2>
+
+<div><img src="anios-apn.png"></div>
+
+<h2>¿Con qué organismos colaboraste con frecuencia en los últimos 12 meses?</h2>
+
+<div id="colabora"></div>
+
+<h2>¿Con qué organismos necesitás integrar información, datos o contenido en los próximos 12 meses?</h2>
+
+<div id="quiere-colaborar"></div>
+
+<script src="http://d3js.org/d3.v2.min.js?2.8.1"></script>
+<script>
+
+    /*  Function: renderPieChart
+    *   Variables:
+    *       *   dataset: contains the input data for plotting the pie chart,
+    *                   input should be in the form of array of objects where each object should be like {label: , value: }
+    *       *   dom_element_to_append_to : class name of the div element where the graph have to be appended
+    *   Contains transitions and hover effects, load the css file 'css/pieChart.css' at the top of html page where the pie chart has to be loaded
+    */
+    function renderPieChart (dataset,dom_element_to_append_to, colorScheme){
+
+        var margin = {top:50,bottom:50,left:50,right:50};
+        var width = 700 - margin.left - margin.right,
+        height = width,
+        radius = Math.min(width, height) / 2;
+        var donutWidth = 75;
+        var legendRectSize = 18;
+        var legendSpacing = 4;
+
+        dataset.forEach(function(item){
+            item.enabled = true;
+        });
+
+        var color = d3.scale.ordinal()
+        .range(colorScheme);
+
+        var svg = d3.select(dom_element_to_append_to)
+        .append("svg")
+        .attr("width", width)
+        .attr("height", height)
+        .append("g")
+        .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+
+        var arc = d3.svg.arc()
+        .outerRadius(radius - 10)
+        .innerRadius(radius - donutWidth);
+
+        var pie = d3.layout.pie()
+        .sort(null)
+        .value(function(d) { return d.value; });
+
+        var tooltip = d3.select(dom_element_to_append_to)
+        .append('div')
+        .attr('class', 'tooltip');
+
+
+        tooltip.append('div')
+        .attr('class', 'label');
+
+        tooltip.append('div')
+        .attr('class', 'count');
+
+        tooltip.append('div')
+        .attr('class', 'percent');
+
+        var path = svg.selectAll('path')
+        .data(pie(dataset))
+        .enter()
+        .append('path')
+        .attr('d', arc)
+        .attr('fill', function(d, i) {
+            return color(d.data.label);
+        })
+        .each(function(d) { this._current = d; });
+
+
+        path.on('mouseover', function(d) {
+            var total = d3.sum(dataset.map(function(d) {
+                return (d.enabled) ? d.value : 0;
+            }));
+
+            var percent = Math.round(1000 * d.data.value / total) / 10;
+            tooltip.select('.label').html(d.data.label.toUpperCase()).style('color','black');
+            tooltip.select('.count').html(d.data.value);
+            tooltip.select('.percent').html(percent + '%');
+
+            tooltip.style('display', 'block');
+            tooltip.style('opacity',2);
+
+        });
+
+
+        path.on('mousemove', function(d) {
+            tooltip.style('top', (d3.event.layerY + 10) + 'px')
+            .style('left', (d3.event.layerX - 25) + 'px');
+        });
+
+        path.on('mouseout', function() {
+            tooltip.style('display', 'none');
+            tooltip.style('opacity',0);
+        });
+
+        var legend = svg.selectAll('.legend')
+        .data(color.domain())
+        .enter()
+        .append('g')
+        .attr('class', 'legend')
+        .attr('transform', function(d, i) {
+            var height = legendRectSize + legendSpacing;
+            var offset =  height * color.domain().length / 2;
+            var horz = -4 * legendRectSize;
+            var vert = i * height - offset;
+            return 'translate(' + horz + ',' + vert + ')';
+        });
+
+        legend.append('rect')
+        .attr('width', legendRectSize)
+        .attr('height', legendRectSize)
+        .style('fill', color)
+        .style('stroke', color)
+        .on('click', function(label) {
+            var rect = d3.select(this);
+            var enabled = true;
+            var totalEnabled = d3.sum(dataset.map(function(d) {
+                return (d.enabled) ? 1 : 0;
+            }));
+
+            if (rect.attr('class') === 'disabled') {
+                rect.attr('class', '');
+            } else {
+                if (totalEnabled < 2) return;
+                rect.attr('class', 'disabled');
+                enabled = false;
+            }
+
+            pie.value(function(d) {
+                if (d.label === label) d.enabled = enabled;
+                return (d.enabled) ? d.value : 0;
+            });
+
+            path = path.data(pie(dataset));
+
+            path.transition()
+            .duration(750)
+            .attrTween('d', function(d) {
+                var interpolate = d3.interpolate(this._current, d);
+                this._current = interpolate(0);
+                return function(t) {
+                    return arc(interpolate(t));
+                };
+            });
+        });
+
+
+        legend.append('text')
+        .attr('x', legendRectSize + legendSpacing)
+        .attr('y', legendRectSize - legendSpacing)
+        .text(function(d) { return d; })
+    };
+
+ 
+// PERFILES
+var inputPerfiles = [{label:'Programador/a', value:51},
+                     {label:'Coordinador/a',value:24},
+                     {label:'Director/a',value:18},
+                     {label:'Otro',value:17},
+                     {label:'Líder de proyecto',value:14},
+                     {label:'Analista de datos',value:11},
+                     {label:'Administrador/a de sistemas',value:7},
+                     {label:'Facilitador/a',value:3}]
+var colorScheme = ["#8fbfaf","#002233","#7989f2","#281d73","#e200f2","#d90057","#f20000","#806460","#8c5e00","#e6f23d","#283326","#79eaf2","#003059"];
+renderPieChart(inputPerfiles,"div#perfiles",colorScheme);
+
+//MINISTERIOS
+var inputMinisterios = [{label:'Ministerio de Modernización', value:45},
+                        {label:'Ministerio de Producción',value:14},
+                        {label:'Ministerio del Interior',value:11},
+                        {label:'AFIP',value:10},
+                        {label:'INDEC',value:7},
+                        {label:'Ministerio de Hacienda',value:6},
+                        {label:'IGN',value:5},
+                        {label:'Ministerio de Justicia',value:4},
+                        {label:'SINTyS',value:4},
+                        {label:'Ministerio de Transporte',value:3},
+                        {label:'ARSAT',value:3},
+                        {label:'Ministerio de Desarrollo Social',value:3},
+                        {label:'SIEMPRO',value:3},
+                        {label:'Ministerio de Turismo',value:2},
+                        {label:'MINCYT',value:2},
+                        {label:'Jefatura de Gabinete',value:2},
+                        {label:'Ministerio de Defensa',value:2}]
+var colorScheme = ["#e6acac","#d97400","#4c4700","#20f200","#8fbfaf","#002233","#7989f2","#281d73","#e200f2","#d90057","#f20000","#806460","#8c5e00","#e6f23d","#283326","#79eaf2","#003059","#0000f2","#0e0033","#912699","#bf6086","#731d1d","#7f4620","#ffbf40","#f2ffbf","#005924","#396773"];
+renderPieChart(inputMinisterios,"div#ministerios",colorScheme);
+
+var width = 720,
+height = 720,
+outerRadius = Math.min(width, height) / 2 - 10,
+innerRadius = outerRadius - 24;
+ 
+var arc = d3.svg.arc()
+.innerRadius(innerRadius)
+.outerRadius(outerRadius);
+ 
+var layout = d3.layout.chord()
+.padding(.04)
+.sortSubgroups(d3.descending)
+.sortChords(d3.ascending);
+ 
+var path = d3.svg.chord()
+.radius(innerRadius);
+ 
+var svg_colabora = d3.select("div#colabora").append("svg")
+.attr("width", width)
+.attr("height", height)
+.append("g")
+.attr("id", "circle")
+.attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+ 
+svg_colabora.append("circle")
+.attr("r", outerRadius);
+ 
+d3.csv("nodos-colabora.csv", function(nodos) {
+d3.json("matrix-colabora.json", function(matrix) {
+ 
+// Compute the chord layout.
+layout.matrix(matrix);
+ 
+// Add a group per neighborhood.
+var group = svg_colabora.selectAll(".group")
+.data(layout.groups)
+.enter().append("g")
+.attr("class", "group")
+.on("mouseover", mouseover);
+ 
+// Add the group arc.
+var groupPath = group.append("path")
+.attr("id", function(d, i) { return "group-colabora" + i; })
+.attr("d", arc)
+.style("fill", function(d, i) { return nodos[i].color; });
+ 
+// Add a text label.
+var groupText = group.append("text")
+.attr("x", 6)
+.attr("dy", 15)
+.attr("font-size", 10);
+ 
+groupText.append("textPath")
+.attr("xlink:href", function(d, i) { return "#group-colabora" + i; })
+.text(function(d, i) { return nodos[i].name; });
+ 
+// Remove the labels that don't fit. :(
+groupText.filter(function(d, i) { return groupPath[0][i].getTotalLength() / 2 - 16 < this.getComputedTextLength(); })
+.remove();
+ 
+// Add the chords.
+var chord = svg_colabora.selectAll(".chord")
+.data(layout.chords)
+.enter().append("path")
+.attr("class", "chord")
+.style("fill", function(d) { return nodos[d.source.index].color; })
+.attr("d", path);
+ 
+// Add an elaborate mouseover title for each chord.
+ chord.append("title").text(function(d) {
+ return nodos[d.source.index].name
+ + " → " + nodos[d.target.index].name
+ + ": " + d.source.value
+ + "\n" + nodos[d.target.index].name
+ + " → " + nodos[d.source.index].name
+ + ": " + d.target.value;
+ });
+ 
+function mouseover(d, i) {
+chord.classed("fade", function(p) {
+return p.source.index != i
+&& p.target.index != i;
+});
+}
+});
+});
+
+// QUIERE COLABORAR
+
+var svg_quiere_colaborar = d3.select("div#quiere-colaborar").append("svg")
+.attr("width", width)
+.attr("height", height)
+.append("g")
+.attr("id", "circle")
+.attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+ 
+svg_quiere_colaborar.append("circle")
+.attr("r", outerRadius);
+ 
+d3.csv("nodos-quiere-colaborar.csv", function(nodos) {
+d3.json("matrix-quiere-colaborar.json", function(matrix) {
+ 
+// Compute the chord layout.
+layout.matrix(matrix);
+ 
+// Add a group per neighborhood.
+var group = svg_quiere_colaborar.selectAll(".group")
+.data(layout.groups)
+.enter().append("g")
+.attr("class", "group")
+.on("mouseover", mouseover);
+ 
+// Add the group arc.
+var groupPath = group.append("path")
+.attr("id", function(d, i) { return "group-quiere-colaborar" + i; })
+.attr("d", arc)
+.style("fill", function(d, i) { return nodos[i].color; });
+ 
+// Add a text label.
+var groupText = group.append("text")
+.attr("x", 6)
+.attr("dy", 15)
+.attr("font-size", 10);
+ 
+groupText.append("textPath")
+.attr("xlink:href", function(d, i) { return "#group-quiere-colaborar" + i; })
+.text(function(d, i) { return nodos[i].name; });
+ 
+// Remove the labels that don't fit. :(
+groupText.filter(function(d, i) { return groupPath[0][i].getTotalLength() / 2 - 16 < this.getComputedTextLength(); })
+.remove();
+ 
+// Add the chords.
+var chord = svg_quiere_colaborar.selectAll(".chord")
+.data(layout.chords)
+.enter().append("path")
+.attr("class", "chord")
+.style("fill", function(d) { return nodos[d.source.index].color; })
+.attr("d", path);
+ 
+// Add an elaborate mouseover title for each chord.
+ chord.append("title").text(function(d) {
+ return nodos[d.source.index].name
+ + " → " + nodos[d.target.index].name
+ + ": " + d.source.value
+ + "\n" + nodos[d.target.index].name
+ + " → " + nodos[d.source.index].name
+ + ": " + d.target.value;
+ });
+ 
+function mouseover(d, i) {
+chord.classed("fade", function(p) {
+return p.source.index != i
+&& p.target.index != i;
+});
+}
+});
+});
+ 
+</script>
